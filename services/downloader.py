@@ -114,31 +114,46 @@ async def download_youtube_video(url: str, category: str) -> str | None:
         return None
 
 
-    output_template = str(Path(DOWNLOAD_PATH) / f"{category}-%(id)s.%(ext)s")
-    ydl_opts = {
-        "format": "best[ext=mp4][height<=720]/bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best",
-        "outtmpl": output_template,
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "restrictfilenames": True,
-    }
+    # System de fallback sur les resolutions pour rester sous les 50MB
+    resolutions = [720, 480, 360, 240, 144]
+    
+    for res in resolutions:
+        print(f"Tentative de telechargement en {res}p...")
+        output_template = str(Path(DOWNLOAD_PATH) / f"{category}-%(id)s-{res}.%(ext)s")
+        ydl_opts = {
+            "format": f"best[ext=mp4][height<={res}]/bestvideo[ext=mp4][height<={res}]+bestaudio[ext=m4a]/best[ext=mp4]/bestvideo+bestaudio/best",
+            "outtmpl": output_template,
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "restrictfilenames": True,
+        }
 
-    def _download():
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
-                info = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info)
-                if os.path.getsize(filename) > MAX_FILE_SIZE * 1024 * 1024:
-                    os.remove(filename)
+        def _download():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    info = ydl.extract_info(url, download=True)
+                    filename = ydl.prepare_filename(info)
+                    return filename
+                except Exception as exc:
+                    print(f"Erreur download {res}p: {exc}")
                     return None
-                return filename
-            except Exception as exc:
-                print(f"Erreur download: {exc}")
-                return None
 
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _download)
+        loop = asyncio.get_running_loop()
+        filename = await loop.run_in_executor(None, _download)
+
+        if filename and os.path.exists(filename):
+            size_mb = os.path.getsize(filename) / (1024 * 1024)
+            if size_mb <= MAX_FILE_SIZE:
+                print(f"Succes en {res}p ({size_mb:.1f}MB)")
+                return filename
+            else:
+                print(f"Fichier {res}p trop gros ({size_mb:.1f}MB), suppression et tentative resolution inferieure.")
+                os.remove(filename)
+        else:
+            continue
+
+    return None
 
 
 async def download_audio(url: str) -> str | None:

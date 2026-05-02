@@ -53,6 +53,15 @@ from handlers.personal import (
     handle_sticker,
 )
 from handlers.youtube_dl import download_amv, download_ed, download_link, download_op, download_any, download_song, generate_image_cmd
+from handlers.advanced import (
+    fav_command,
+    unfav_command,
+    mesfavs_command,
+    note_command,
+    montop_command,
+    rappel_command,
+    check_reminders,
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -269,6 +278,19 @@ def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("song", download_song))
     app.add_handler(CommandHandler("img", generate_image_cmd))
+
+    # Features avancees
+    app.add_handler(CommandHandler("fav", fav_command))
+    app.add_handler(CommandHandler("unfav", unfav_command))
+    app.add_handler(CommandHandler("mesfavs", mesfavs_command))
+    app.add_handler(CommandHandler("note", note_command))
+    app.add_handler(CommandHandler("montop", montop_command))
+    app.add_handler(CommandHandler("rappel", rappel_command))
+
+    # Rappels automatiques
+    if app.job_queue:
+        app.job_queue.run_repeating(check_reminders, interval=60, first=10)
+
     app.add_handler(MessageHandler(filters.Sticker.ALL, handle_sticker))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, conversation_handler))
     app.add_error_handler(error_handler)
